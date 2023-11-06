@@ -77,8 +77,7 @@ func main() {
 	if input == "1" {
 		fmt.Println("Please select Key Pair generation option.\n" +
 			"1. Generate using pkcs11 token.\n" +
-			// need to verify text here
-			"2. Generate using random data.",
+			"2. Generate in memory / file.",
 		)
 		_, err = fmt.Scanln(&input)
 		if err != nil {

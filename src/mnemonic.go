@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
@@ -13,15 +14,30 @@ import (
 )
 
 func StartMnemonicRecovery() {
-	fmt.Println(
-		"Enter 12/24 word mnemonic. Press Enter after each word.\n" +
-			"For 12 word mnemonic, press Enter two times after 12th word.",
-	)
+	var input string
+
+	var wordNum int64
+
+	fmt.Println("Please enter number of mnemonic words (12 / 24).")
+	_, err := fmt.Scanln(&input)
+	if err != nil {
+		log.Fatal(err)
+	}
+	switch input {
+	case "12", "24":
+		wordNum, err = strconv.ParseInt(input, 10, 0)
+		if err != nil {
+			log.Fatal("Invalid number entered")
+		}
+	default:
+		log.Fatal("Invalid input")
+	}
+
+	fmt.Println("Please enter mnemonic phrase. Press Enter after each word.")
 
 	var mnemonic []string // = strings.Split(m, " ")
 
-	var input string
-	for i := 0; i < 24; i++ {
+	for i := 0; i < int(wordNum); i++ {
 		_, err := fmt.Scanln(&input)
 		if err != nil {
 			if i == 12 {

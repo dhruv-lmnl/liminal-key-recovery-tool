@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/miekg/pkcs11"
 	log "github.com/sirupsen/logrus"
@@ -209,6 +210,8 @@ func GenerateRsaKeypair() error {
 		return err
 	}
 
+	fmt.Println(pubkeyPem)
+
 	err = SaveFile("liminal-recovery-key-pair-public-key.pem", pubkeyPem)
 	if err != nil {
 		log.Println(err)
@@ -369,14 +372,18 @@ func ExportPublicKey() error {
 		return err
 	}
 
-	err = SaveFile("liminal-recovery-key-pair-public-key.pem", pubkeyPem)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error exporting rsa keypair")
-		return err
-	}
+	fmt.Printf("\n%v\n", pubkeyPem)
 
-	fmt.Println("Public key exported successfully")
+	if input := TakeInput("Export public key to file (y/n)"); strings.ToLower(input) == "y" {
+		err = SaveFile("liminal-recovery-key-pair-public-key.pem", pubkeyPem)
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Error exporting rsa keypair")
+			return err
+		}
+
+		fmt.Println("Public key exported successfully")
+	}
 
 	return nil
 }

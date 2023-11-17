@@ -35,7 +35,7 @@ func StartMnemonicRecovery() {
 
 	fmt.Println("Please enter mnemonic phrase. Press Enter after each word.")
 
-	var mnemonic []string // = strings.Split(m, " ")
+	var mnemonic []string
 
 	for i := 0; i < int(wordNum); i++ {
 		_, err := fmt.Scanln(&input)
@@ -71,7 +71,7 @@ func StartMnemonicRecovery() {
 	message := []byte(mnemonicPhrase)
 
 	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakeInput("Please enter user pin")
+	pin := TakePinInput("Please enter user pin")
 
 	var keyId, keyName string
 	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
@@ -92,7 +92,7 @@ func StartMnemonicRecovery() {
 		log.Fatal("Invalid input")
 	}
 
-	enc, _ := EncryptMessage(path, keyId, keyName, tokenLabel, message)
+	enc, _ := EncryptMessage(path, keyId, keyName, pin, tokenLabel, message)
 
 	base64EncryptedMnemonic := base64.RawStdEncoding.EncodeToString(enc)
 
@@ -113,7 +113,7 @@ func StartMnemonicRecovery() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Does your default account match following address (y/n):", account.Address.Hex())
+	fmt.Println("Does your default account (at path m/44'/60'/0'/0/0) match following address (y/n):", account.Address.Hex())
 	_, err = fmt.Scanln(&input)
 	if err != nil {
 		log.Fatal(err)
@@ -129,7 +129,7 @@ func StartMnemonicRecovery() {
 		if len(base64EncryptedMnemonic) != n {
 			log.Fatal("error creating encrypted mnemonic file")
 		}
-		log.Info("address verified, encrypted file created")
+		fmt.Println("Address verified, encrypted file containing mnemonic words exported successfully")
 	} else {
 		log.Fatal("address verification failed")
 	}

@@ -501,7 +501,7 @@ func VerifySign(path, keyId, keyName, pin, tokenLabel string, message, signature
 	return nil
 }
 
-func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte) ([]byte, error) {
+func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte, useOaepMechanism bool) ([]byte, error) {
 	p, err := Init(path)
 	if err != nil {
 		log.Println(err)
@@ -532,11 +532,25 @@ func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte
 		return nil, errors.New("Object handle not found")
 	}
 
-	err = p.EncryptInit(
-		session,
-		[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)},
-		pbks[0],
-	)
+	if useOaepMechanism {
+		oaepParams := pkcs11.NewOAEPParams(
+			pkcs11.CKM_SHA256,
+			pkcs11.CKG_MGF1_SHA256,
+			pkcs11.CKZ_DATA_SPECIFIED,
+			[]byte(""),
+		)
+		err = p.EncryptInit(
+			session,
+			[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_OAEP, oaepParams)},
+			pbks[0],
+		)
+	} else {
+		err = p.EncryptInit(
+			session,
+			[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)},
+			pbks[0],
+		)
+	}
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error encrypting message")
@@ -553,7 +567,7 @@ func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte
 	return encryptedData, nil
 }
 
-func DecryptMessage(path, keyId, keyName, pin, tokenLabel string, encryptedMessage []byte) ([]byte, error) {
+func DecryptMessage(path, keyId, keyName, pin, tokenLabel string, encryptedMessage []byte, useOaepMechanism bool) ([]byte, error) {
 	p, err := Init(path)
 	if err != nil {
 		log.Println(err)
@@ -585,11 +599,25 @@ func DecryptMessage(path, keyId, keyName, pin, tokenLabel string, encryptedMessa
 		return nil, errors.New("Object handle not found")
 	}
 
-	err = p.DecryptInit(
-		session,
-		[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)},
-		pvks[0],
-	)
+	if useOaepMechanism {
+		oaepParams := pkcs11.NewOAEPParams(
+			pkcs11.CKM_SHA256,
+			pkcs11.CKG_MGF1_SHA256,
+			pkcs11.CKZ_DATA_SPECIFIED,
+			[]byte(""),
+		)
+		err = p.DecryptInit(
+			session,
+			[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_OAEP, oaepParams)},
+			pvks[0],
+		)
+	} else {
+		err = p.DecryptInit(
+			session,
+			[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)},
+			pvks[0],
+		)
+	}
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error decrypting message")
@@ -699,6 +727,58 @@ func getPrivateObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId,
 	}
 
 	return objectHandles, nil
+}
+
+type ErsHsmDecryptor struct {
+	pkcs11LibPath string
+	slotPin       string
+	keyId         string
+	keyName       string
+	tokenLabel    string
+}
+
+func (ersDecryptor ErsHsmDecryptor) Decrypt(ciphertext, label []byte) (plaintext []byte, err error) {
+	return DecryptMessage(
+		ersDecryptor.pkcs11LibPath,
+		ersDecryptor.keyId,
+		ersDecryptor.keyName,
+		ersDecryptor.slotPin,
+		ersDecryptor.tokenLabel,
+		ciphertext,
+		true,
+	)
+}
+
+func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
+	path := TakeInput("Please enter pkcs11 lib path")
+	pin := TakePinInput("Please enter user pin")
+
+	keyId, keyName := "", ""
+	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
+	case "1":
+		keyId = TakeInput("Please enter key id")
+	case "2":
+		keyName = TakeInput("Please enter key name")
+	default:
+		log.Fatal("Invalid input")
+	}
+
+	tokenLabel := ""
+	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
+	case "1":
+		tokenLabel = TakeInput("Enter token label")
+	case "2":
+	default:
+		log.Fatal("Invalid input")
+	}
+
+	return &ErsHsmDecryptor{
+		pkcs11LibPath: path,
+		slotPin:       pin,
+		keyId:         keyId,
+		keyName:       keyName,
+		tokenLabel:    tokenLabel,
+	}
 }
 
 func TakeInput(text string) string {

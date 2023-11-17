@@ -92,11 +92,11 @@ func StartMnemonicRecovery() {
 		log.Fatal("Invalid input")
 	}
 
-	enc, _ := EncryptMessage(path, keyId, keyName, pin, tokenLabel, message)
+	enc, _ := EncryptMessage(path, keyId, keyName, pin, tokenLabel, message, false)
 
 	base64EncryptedMnemonic := base64.RawStdEncoding.EncodeToString(enc)
 
-	dec, _ := DecryptMessage(path, keyId, keyName, pin, tokenLabel, enc)
+	dec, _ := DecryptMessage(path, keyId, keyName, pin, tokenLabel, enc, false)
 
 	if !bytes.Equal(message, dec) {
 		log.Fatal("decrypted value does not match message")

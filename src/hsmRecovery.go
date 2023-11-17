@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -13,8 +12,6 @@ import (
 	"gitlab.com/sepior/ers-lib/math"
 	"golang.org/x/term"
 )
-
-type ErsDecryptor struct{}
 
 func FullHsmRecovery() {
 	fmt.Println("Enter recovery package file name")
@@ -51,14 +48,14 @@ func FullHsmRecovery() {
 	}
 	log.Info(recoveryInfo.EcdsaPublicKey)
 
-	ersDecryptor := ErsDecryptor{}
+	ersHsmDecryptor := InitializeErsHsmDecryptor()
 
 	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error decoding recovery package")
 	}
-	_, privateKeyASN1, masterChainCode, err := ers.RecoverPrivateKey(ersDecryptor, []byte(""), ecdsaRecoveryData, []uint32{})
+	_, privateKeyASN1, masterChainCode, err := ers.RecoverPrivateKey(*ersHsmDecryptor, []byte(""), ecdsaRecoveryData, []uint32{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,7 +75,7 @@ func FullHsmRecovery() {
 		log.Println(err)
 		log.Fatal("Error decoding recovery info")
 	}
-	ellipticCurve, privateKeyASN1, _, err := ers.RecoverPrivateKey(ersDecryptor, []byte(""), eddsaRecoveryData, []uint32{})
+	ellipticCurve, privateKeyASN1, _, err := ers.RecoverPrivateKey(ersHsmDecryptor, []byte(""), eddsaRecoveryData, []uint32{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,32 +87,4 @@ func FullHsmRecovery() {
 		log.Fatal("Eddsa public key mismatch")
 	}
 	fmt.Println("Recovery package verification successful")
-}
-
-func (ersDecryptor ErsDecryptor) Decrypt(ciphertext, label []byte) (plaintext []byte, err error) {
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
-
-	var keyId, keyName string
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
-	case "1":
-		keyId = TakeInput("Please enter key id")
-	case "2":
-		keyName = TakeInput("Please enter key name")
-	default:
-		log.Fatal("Invalid input")
-		return nil, errors.New("invalid user input")
-	}
-
-	var tokenLabel string
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
-	case "1":
-		tokenLabel = TakeInput("Enter token label")
-	case "2":
-	default:
-		log.Fatal("Invalid input")
-		return nil, errors.New("invalid user input")
-	}
-
-	return DecryptMessage(path, keyId, keyName, pin, tokenLabel, ciphertext)
 }

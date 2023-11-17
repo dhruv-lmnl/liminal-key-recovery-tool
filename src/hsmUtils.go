@@ -9,9 +9,11 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/miekg/pkcs11"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/term"
 )
 
 /*
@@ -33,6 +35,10 @@ func openSession(p *pkcs11.Ctx, tokenLabel string, pin string) (pkcs11.SessionHa
 	slots, err := p.GetSlotList(true)
 	if err != nil {
 		return pkcs11.SessionHandle(0), err
+	}
+
+	if len(slots) == 0 {
+		return pkcs11.SessionHandle(0), errors.New("unable to open session, slot list empty")
 	}
 
 	slotId := 0
@@ -59,11 +65,9 @@ func openSession(p *pkcs11.Ctx, tokenLabel string, pin string) (pkcs11.SessionHa
 		return pkcs11.SessionHandle(0), err
 	}
 
-	if pin != "" {
-		err = p.Login(session, pkcs11.CKU_USER, pin)
-		if err != nil {
-			return pkcs11.SessionHandle(0), err
-		}
+	err = p.Login(session, pkcs11.CKU_USER, pin)
+	if err != nil {
+		return pkcs11.SessionHandle(0), err
 	}
 
 	return session, nil
@@ -108,7 +112,7 @@ func getRsaKeypairGenerationMechanisms() []*pkcs11.Mechanism {
 
 func GenerateRsaKeypair() error {
 	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakeInput("Please enter user pin")
+	pin := TakePinInput("Please enter user pin")
 
 	var keyId, keyName string
 	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
@@ -226,7 +230,7 @@ func GenerateRsaKeypair() error {
 
 func DeleteRsaKeypair() error {
 	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakeInput("Please enter user pin")
+	pin := TakePinInput("Please enter user pin")
 
 	var keyId, keyName string
 	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
@@ -313,6 +317,7 @@ func DeleteRsaKeypair() error {
 
 func ExportPublicKey() error {
 	path := TakeInput("Please enter pkcs11 lib path")
+	pin := TakePinInput("Please enter user pin")
 
 	var keyId, keyName string
 	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
@@ -336,16 +341,16 @@ func ExportPublicKey() error {
 	p, err := Init(path)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error exporting rsa keypair")
+		log.Fatal("Error exporting public key")
 		return err
 	}
 	defer p.Destroy()
 	defer p.Finalize()
 
-	session, err := openSession(p, tokenLabel, "")
+	session, err := openSession(p, tokenLabel, pin)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error exporting rsa keypair")
+		log.Fatal("Error exporting public key")
 		return err
 	}
 
@@ -355,7 +360,7 @@ func ExportPublicKey() error {
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error exporting rsa keypair")
+		log.Fatal("Error exporting public key")
 		return err
 	}
 
@@ -368,7 +373,7 @@ func ExportPublicKey() error {
 	pubkeyPem, err := getPublicKey(p, session, pbks[0])
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error exporting rsa keypair")
+		log.Fatal("Error exporting public key")
 		return err
 	}
 
@@ -378,7 +383,7 @@ func ExportPublicKey() error {
 		err = SaveFile("liminal-recovery-key-pair-public-key.pem", pubkeyPem)
 		if err != nil {
 			log.Println(err)
-			log.Fatal("Error exporting rsa keypair")
+			log.Fatal("Error exporting public key")
 			return err
 		}
 
@@ -439,12 +444,10 @@ func SignMessage(path, keyId, keyName, pin, tokenLabel string, message []byte) (
 		return nil, err
 	}
 
-	fmt.Println("Message signed successfully")
-
 	return sign, nil
 }
 
-func VerifySign(path, keyId, keyName, tokenLabel string, message, signature []byte) error {
+func VerifySign(path, keyId, keyName, pin, tokenLabel string, message, signature []byte) error {
 	p, err := Init(path)
 	if err != nil {
 		log.Println(err)
@@ -454,7 +457,7 @@ func VerifySign(path, keyId, keyName, tokenLabel string, message, signature []by
 	defer p.Destroy()
 	defer p.Finalize()
 
-	session, err := openSession(p, tokenLabel, "")
+	session, err := openSession(p, tokenLabel, pin)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error verifying message")
@@ -462,6 +465,7 @@ func VerifySign(path, keyId, keyName, tokenLabel string, message, signature []by
 	}
 
 	defer p.CloseSession(session)
+	defer p.Logout(session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -494,12 +498,10 @@ func VerifySign(path, keyId, keyName, tokenLabel string, message, signature []by
 		return err
 	}
 
-	fmt.Println("Sign verified successfully")
-
 	return nil
 }
 
-func EncryptMessage(path, keyId, keyName, tokenLabel string, message []byte) ([]byte, error) {
+func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte) ([]byte, error) {
 	p, err := Init(path)
 	if err != nil {
 		log.Println(err)
@@ -509,7 +511,7 @@ func EncryptMessage(path, keyId, keyName, tokenLabel string, message []byte) ([]
 	defer p.Destroy()
 	defer p.Finalize()
 
-	session, err := openSession(p, tokenLabel, "")
+	session, err := openSession(p, tokenLabel, pin)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error encrypting message")
@@ -517,6 +519,7 @@ func EncryptMessage(path, keyId, keyName, tokenLabel string, message []byte) ([]
 	}
 
 	defer p.CloseSession(session)
+	defer p.Logout(session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -531,9 +534,7 @@ func EncryptMessage(path, keyId, keyName, tokenLabel string, message []byte) ([]
 
 	err = p.EncryptInit(
 		session,
-		[]*pkcs11.Mechanism{
-			pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil),
-		},
+		[]*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)},
 		pbks[0],
 	)
 	if err != nil {
@@ -548,8 +549,6 @@ func EncryptMessage(path, keyId, keyName, tokenLabel string, message []byte) ([]
 		log.Fatal("Error encrypting message")
 		return nil, err
 	}
-
-	fmt.Println("Message encrypted successfully")
 
 	return encryptedData, nil
 }
@@ -604,8 +603,6 @@ func DecryptMessage(path, keyId, keyName, pin, tokenLabel string, encryptedMessa
 		return nil, err
 	}
 
-	fmt.Println("Message decrypted successfully")
-
 	return decryptedData, nil
 }
 
@@ -650,6 +647,8 @@ func getPublicObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId, 
 
 	publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_VERIFY, true))
 	publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_ENCRYPT, true))
+	publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_TOKEN, true))
+	publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_CLASS, pkcs11.CKO_PUBLIC_KEY))
 
 	err := p.FindObjectsInit(session, publicKeyAttributes)
 	if err != nil {
@@ -681,6 +680,8 @@ func getPrivateObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId,
 
 	privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_SIGN, true))
 	privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_DECRYPT, true))
+	privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_TOKEN, true))
+	privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_CLASS, pkcs11.CKO_PRIVATE_KEY))
 
 	err := p.FindObjectsInit(session, privateKeyAttributes)
 	if err != nil {
@@ -711,6 +712,17 @@ func TakeInput(text string) string {
 	}
 
 	return input
+}
+
+func TakePinInput(text string) string {
+	fmt.Println(text)
+	bytepw, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		log.Fatal(err)
+		return ""
+	}
+
+	return string(bytepw)
 }
 
 func SaveFile(name, content string) error {

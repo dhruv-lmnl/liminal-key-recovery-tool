@@ -111,27 +111,7 @@ func getRsaKeypairGenerationMechanisms() []*pkcs11.Mechanism {
 }
 
 func GenerateRsaKeypair() error {
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
-
-	var keyId, keyName string
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
-	case "1":
-		keyId = TakeInput("Please enter key id")
-	case "2":
-		keyName = TakeInput("Please enter key name")
-	default:
-		log.Fatal("Invalid input")
-	}
-
-	var tokenLabel string
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
-	case "1":
-		tokenLabel = TakeInput("Enter token label")
-	case "2":
-	default:
-		log.Fatal("Invalid input")
-	}
+	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	var recreate bool
 	switch input := TakeInput("Please select option.\n" + "1. Recreate keypair, if existing found\n" + "2. Skip keypair generation, if existing found"); input {
@@ -229,27 +209,7 @@ func GenerateRsaKeypair() error {
 }
 
 func DeleteRsaKeypair() error {
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
-
-	var keyId, keyName string
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
-	case "1":
-		keyId = TakeInput("Please enter key id")
-	case "2":
-		keyName = TakeInput("Please enter key name")
-	default:
-		log.Fatal("Invalid input")
-	}
-
-	var tokenLabel string
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
-	case "1":
-		tokenLabel = TakeInput("Enter token label")
-	case "2":
-	default:
-		log.Fatal("Invalid input")
-	}
+	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	p, err := Init(path)
 	if err != nil {
@@ -316,27 +276,7 @@ func DeleteRsaKeypair() error {
 }
 
 func ExportPublicKey() error {
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
-
-	var keyId, keyName string
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
-	case "1":
-		keyId = TakeInput("Please enter key id")
-	case "2":
-		keyName = TakeInput("Please enter key name")
-	default:
-		log.Fatal("Invalid input")
-	}
-
-	var tokenLabel string
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
-	case "1":
-		tokenLabel = TakeInput("Enter token label")
-	case "2":
-	default:
-		log.Fatal("Invalid input")
-	}
+	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	p, err := Init(path)
 	if err != nil {
@@ -749,11 +689,11 @@ func (ersDecryptor ErsHsmDecryptor) Decrypt(ciphertext, label []byte) (plaintext
 	)
 }
 
-func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
+func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
+	path = TakeInput("Please enter pkcs11 lib path")
+	pin = TakePinInput("Please enter user pin")
 
-	keyId, keyName := "", ""
+	keyId, keyName = "", ""
 	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
 	case "1":
 		keyId = TakeInput("Please enter key id")
@@ -763,7 +703,7 @@ func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
 		log.Fatal("Invalid input")
 	}
 
-	tokenLabel := ""
+	tokenLabel = ""
 	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
 	case "1":
 		tokenLabel = TakeInput("Enter token label")
@@ -771,6 +711,12 @@ func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
 	default:
 		log.Fatal("Invalid input")
 	}
+
+	return path, pin, keyId, keyName, tokenLabel
+}
+
+func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
+	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	return &ErsHsmDecryptor{
 		pkcs11LibPath: path,

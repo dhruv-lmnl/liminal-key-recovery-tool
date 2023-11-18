@@ -18,7 +18,7 @@ func StartMnemonicRecovery() {
 
 	var wordNum int64
 
-	fmt.Println("Please enter number of mnemonic words (12 / 24).")
+	fmt.Println("Please enter number of mnemonic words (12/24).")
 	_, err := fmt.Scanln(&input)
 	if err != nil {
 		log.Fatal(err)
@@ -70,27 +70,7 @@ func StartMnemonicRecovery() {
 
 	message := []byte(mnemonicPhrase)
 
-	path := TakeInput("Please enter pkcs11 lib path")
-	pin := TakePinInput("Please enter user pin")
-
-	var keyId, keyName string
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
-	case "1":
-		keyId = TakeInput("Please enter key id")
-	case "2":
-		keyName = TakeInput("Please enter key name")
-	default:
-		log.Fatal("Invalid input")
-	}
-
-	var tokenLabel string
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
-	case "1":
-		tokenLabel = TakeInput("Enter token label")
-	case "2":
-	default:
-		log.Fatal("Invalid input")
-	}
+	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	enc, _ := EncryptMessage(path, keyId, keyName, pin, tokenLabel, message, false)
 
@@ -120,7 +100,7 @@ func StartMnemonicRecovery() {
 	}
 
 	if strings.ToLower(input) == "y" {
-		file, err := os.Create("encrypted-base64-mnemonic-phrase.txt")
+		file, err := os.Create("encrypted-mnemonic-phrase.txt")
 		if err != nil {
 			log.Fatal("error creating encrypted mnemonic file: ", err)
 		}

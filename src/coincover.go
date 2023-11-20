@@ -194,10 +194,6 @@ func handleStatusCode(statusCode, successCode int) error {
 
 func handleError(baseMsg string, err error) {
 	if err != nil {
-		logFatal(fmt.Sprintf("%v: %v", baseMsg, err))
+		log.Fatalf("%v: %v", baseMsg, err)
 	}
-}
-
-func logFatal(msg string) {
-	log.Fatal(msg)
 }

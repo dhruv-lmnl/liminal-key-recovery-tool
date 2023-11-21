@@ -62,7 +62,7 @@ func main() {
 		"6. [OFFLINE] Reveal the EDDSA Private Backup Key - Please use this option exclusively in offline mode. This process requires the recovery package, the private key file of the recovery key pair, and the recovery key passphrase. It unveils the EDDSA private backup key, enabling the recovery of digital assets from protocols such as Solana and Cardano.\n" +
 		"7. [OFFLINE] Export encrypted mnemonic phrase - Please use this option exclusively in offline mode to encrypt and export your 12/24 word mnemonic seed phrase\n" +
 		"8. Export HSM public key - Reveal and export the public key of the HSM token\n" +
-		"9. [OFFLINE] Coincover Backup - Please use this option to encrypt backup data with Coincover public key and store it in Coincover server.",
+		"9. [OFFLINE] Coincover Backup & Recovery - Please use this option to encrypt backup data with Coincover public key and store it in Coincover server. Other option is to recover backup data from Coincover.",
 	)
 
 	_, err := fmt.Scanln(&input)
@@ -104,7 +104,14 @@ func main() {
 	} else if input == "8" {
 		ExportPublicKey()
 	} else if input == "9" {
-		CoincoverBackup()
+		input = TakeInput("Please select Coincover option\n1. Perform Backup\n2. Perform Recovery")
+		if input == "1" {
+			CoincoverBackup()
+		} else if input == "2" {
+			CoincoverRecovery()
+		} else {
+			log.Fatal("Invalid choice")
+		}
 	} else {
 		log.Fatal("Invalid choice")
 	}

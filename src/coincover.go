@@ -41,6 +41,14 @@ type EncryptResponse struct {
 	Cipher string `json:"cipher"`
 }
 
+type DecryptBody struct {
+	Priv   string `json:"priv"`
+	Cipher string `json:"cipher"`
+}
+
+type DecryptResponse struct {
+}
+
 type StoreBody struct {
 	EndUserId string `json:"endUserId"`
 	Data      string `json:"data"`
@@ -63,6 +71,17 @@ func CoincoverBackup() {
 	handleError("failed to store encrypted data with coincover", err)
 
 	fmt.Println("\nFile encrypted and stored successfully")
+}
+
+func CoincoverRecovery() {
+	coincoverClient := CoincoverClient{
+		BaseUrl: strings.TrimSuffix(TakeInput("Please enter coincover base url"), "/"),
+	}
+
+	decryptResponse, err := coincoverClient.Decrypt()
+	handleError("failed to recover backup data", err)
+
+	log.Println("decrypt response: ", decryptResponse)
 }
 
 func (c *CoincoverClient) GetPublicKey() (*PublicKeyResponse, error) {
@@ -142,6 +161,39 @@ func (c *CoincoverClient) Store(encryptResponse *EncryptResponse, publicKeyRespo
 	}
 
 	return nil
+}
+
+func (c *CoincoverClient) Decrypt() (*DecryptResponse, error) {
+	privateKeyFilePath := TakeInput("Please enter private key file path")
+	cipherFilePath := TakeInput("Please enter encrypted data file path")
+
+	privateKeyData, err := os.ReadFile(privateKeyFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	cipherData, err := os.ReadFile(cipherFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody := DecryptBody{
+		Priv:   string(privateKeyData),
+		Cipher: string(cipherData),
+	}
+
+	var decryptResponse DecryptResponse
+	statusCode, err := c.processCoincoverCall("/decrypt-rsa", reqBody, &decryptResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	err = handleStatusCode(statusCode, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+
+	return &decryptResponse, nil
 }
 
 func (c *CoincoverClient) processCoincoverCall(endpoint string, reqBody interface{}, target interface{}) (int, error) {

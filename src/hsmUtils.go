@@ -123,24 +123,14 @@ func GenerateRsaKeypair() error {
 		log.Fatal("Invalid input")
 	}
 
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error generating rsa keypair")
-		return err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error generating rsa keypair")
 		return err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -211,24 +201,14 @@ func GenerateRsaKeypair() error {
 func DeleteRsaKeypair() error {
 	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error deleting rsa keypair")
-		return err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error deleting rsa keypair")
 		return err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -278,24 +258,14 @@ func DeleteRsaKeypair() error {
 func ExportPublicKey() error {
 	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error exporting public key")
-		return err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error exporting public key")
 		return err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -334,24 +304,14 @@ func ExportPublicKey() error {
 }
 
 func SignMessage(path, keyId, keyName, pin, tokenLabel string, message []byte) ([]byte, error) {
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error signing message")
-		return nil, err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error signing message")
 		return nil, err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pvks, err := getPrivateObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -388,33 +348,23 @@ func SignMessage(path, keyId, keyName, pin, tokenLabel string, message []byte) (
 }
 
 func VerifySign(path, keyId, keyName, pin, tokenLabel string, message, signature []byte) error {
-	p, err := Init(path)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error verifying message")
-		return err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error verifying message")
+		log.Fatal("Error verifying signature")
 		return err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error verifying message")
+		log.Fatal("Error verifying signature")
 		return err
 	}
 	if len(pbks) == 0 {
-		log.Fatal("Error verifying message")
+		log.Fatal("Error verifying signature")
 		return errors.New("Object handle not found")
 	}
 
@@ -427,14 +377,14 @@ func VerifySign(path, keyId, keyName, pin, tokenLabel string, message, signature
 	)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error verifying message")
+		log.Fatal("Error verifying signature")
 		return err
 	}
 
 	err = p.Verify(session, message, signature)
 	if err != nil {
 		log.Println(err)
-		log.Fatal("Error verifying message")
+		log.Fatal("Error verifying signature")
 		return err
 	}
 
@@ -442,24 +392,14 @@ func VerifySign(path, keyId, keyName, pin, tokenLabel string, message, signature
 }
 
 func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte, useOaepMechanism bool) ([]byte, error) {
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error encrypting message")
-		return nil, err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error encrypting message")
 		return nil, err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pbks, err := getPublicObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -508,24 +448,14 @@ func EncryptMessage(path, keyId, keyName, pin, tokenLabel string, message []byte
 }
 
 func DecryptMessage(path, keyId, keyName, pin, tokenLabel string, encryptedMessage []byte, useOaepMechanism bool) ([]byte, error) {
-	p, err := Init(path)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decrypting message")
-		return nil, err
-	}
-	defer p.Destroy()
-	defer p.Finalize()
-
-	session, err := openSession(p, tokenLabel, pin)
+	p, session, err := initLoginHsm(path, pin, tokenLabel)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error decrypting message")
 		return nil, err
 	}
 
-	defer p.CloseSession(session)
-	defer p.Logout(session)
+	defer cleanup(p, session)
 
 	pvks, err := getPrivateObjectHandles(p, session, keyId, keyName)
 	if err != nil {
@@ -725,6 +655,31 @@ func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
 		keyName:       keyName,
 		tokenLabel:    tokenLabel,
 	}
+}
+
+func initLoginHsm(path, pin, tokenLabel string) (*pkcs11.Ctx, pkcs11.SessionHandle, error) {
+	p, err := Init(path)
+	if err != nil {
+		log.Println(err)
+		log.Fatal("Unable to initialize hsm")
+		return nil, pkcs11.SessionHandle(0), err
+	}
+
+	session, err := openSession(p, tokenLabel, pin)
+	if err != nil {
+		log.Println(err)
+		log.Fatal("Unable to open hsm session")
+		return p, pkcs11.SessionHandle(0), err
+	}
+
+	return p, session, nil
+}
+
+func cleanup(p *pkcs11.Ctx, session pkcs11.SessionHandle) {
+	p.Destroy()
+	p.Finalize()
+	p.CloseSession(session)
+	p.Logout(session)
 }
 
 func TakeInput(text string) string {

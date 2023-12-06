@@ -599,7 +599,7 @@ func getPrivateObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId,
 	return objectHandles, nil
 }
 
-type ErsHsmDecryptor struct {
+type ErsHsmHelper struct {
 	pkcs11LibPath string
 	slotPin       string
 	keyId         string
@@ -607,14 +607,26 @@ type ErsHsmDecryptor struct {
 	tokenLabel    string
 }
 
-func (ersDecryptor ErsHsmDecryptor) Decrypt(ciphertext, label []byte) (plaintext []byte, err error) {
+func (ersHelper ErsHsmHelper) Decrypt(ciphertext, label []byte) (plaintext []byte, err error) {
 	return DecryptMessage(
-		ersDecryptor.pkcs11LibPath,
-		ersDecryptor.keyId,
-		ersDecryptor.keyName,
-		ersDecryptor.slotPin,
-		ersDecryptor.tokenLabel,
+		ersHelper.pkcs11LibPath,
+		ersHelper.keyId,
+		ersHelper.keyName,
+		ersHelper.slotPin,
+		ersHelper.tokenLabel,
 		ciphertext,
+		true,
+	)
+}
+
+func (ersHelper ErsHsmHelper) Encrypt(plaintext, label []byte) (ciphertext []byte, err error) {
+	return EncryptMessage(
+		ersHelper.pkcs11LibPath,
+		ersHelper.keyId,
+		ersHelper.keyName,
+		ersHelper.slotPin,
+		ersHelper.tokenLabel,
+		plaintext,
 		true,
 	)
 }
@@ -645,10 +657,10 @@ func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
 	return path, pin, keyId, keyName, tokenLabel
 }
 
-func InitializeErsHsmDecryptor() *ErsHsmDecryptor {
+func InitializeErsHsmHelper() *ErsHsmHelper {
 	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
-	return &ErsHsmDecryptor{
+	return &ErsHsmHelper{
 		pkcs11LibPath: path,
 		slotPin:       pin,
 		keyId:         keyId,

@@ -2,8 +2,9 @@ package main
 
 import (
 	"crypto/rsa"
-	"gitlab.com/sepior/ers-lib/ers"
 	"log"
+
+	"gitlab.com/sepior/ers-lib/ers"
 )
 
 func recoverEDDSAPrivateKey(key *rsa.PrivateKey, recoveryInfo []byte, chainpath []uint32) (string, []byte, []byte) {

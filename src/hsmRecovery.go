@@ -48,7 +48,7 @@ func FullHsmRecovery() {
 	}
 	log.Info(recoveryInfo.EcdsaPublicKey)
 
-	ersHsmDecryptor := InitializeErsHsmDecryptor()
+	ersHsmDecryptor := InitializeErsHsmHelper()
 
 	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
 	if err != nil {

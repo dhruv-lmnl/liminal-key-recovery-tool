@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcutil/base58"
 	"io/ioutil"
 	"math/big"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/btcsuite/btcutil/base58"
 )
 
 type Auth0Response struct {
@@ -25,6 +26,13 @@ type GetPartialRecoveryResponse struct {
 	Success bool   `json:"success"`
 	Data    string `json:"data"`
 }
+
+type RecoveryMethod string
+
+const (
+	IN_FILE_PRIVATE_KEY RecoveryMethod = "1"
+	HSM_TOKEN           RecoveryMethod = "2"
+)
 
 const apiUrl = "https://api.lmnl.app"
 const auth0Url = "https://lmnlhq.us.auth0.com/oauth/token"

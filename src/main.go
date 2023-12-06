@@ -342,30 +342,44 @@ func startGeneratingRecoveryInfo() {
 }
 
 func startRecoveringECDSAPrivateKey() {
-	rsaPrivateKey, err := os.ReadFile("liminal-recovery-key-pair-private-key.pem")
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading rsa private key")
-	}
+	recoveryMethod := TakeInput("Please choose recovery method\n1. Using RSA private key file\n2. Using HSM token")
 
-	fmt.Println("WARNING: PERFORM THIS ACTION ONLY ON OFFLINE COMPUTER\n" +
-		"Please make sure the recovery package file with name liminal-recovery-package and recovery key pair private key file with name liminal-recovery-key-pair-private-key is in the current folder.\n" +
-		"Enter Recovery key pair passphrase")
-	bytepw, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		os.Exit(1)
-	}
-	input := string(bytepw)
-	block, _ := pem.Decode(rsaPrivateKey)
-	privbytes, err := x509.DecryptPEMBlock(block, []byte(input))
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Incorrect password")
-	}
-	key, err := x509.ParsePKCS1PrivateKey(privbytes)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading rsa private key")
+	var key *rsa.PrivateKey
+
+	var ersDecryptor ers.Decryptor
+	var ersHsmHelper *ErsHsmHelper
+
+	if recoveryMethod == "1" {
+		rsaPrivateKey, err := os.ReadFile("liminal-recovery-key-pair-private-key.pem")
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Error reading rsa private key")
+		}
+
+		fmt.Println("WARNING: PERFORM THIS ACTION ONLY ON OFFLINE COMPUTER\n" +
+			"Please make sure the recovery package file with name liminal-recovery-package and recovery key pair private key file with name liminal-recovery-key-pair-private-key is in the current folder.\n" +
+			"Enter Recovery key pair passphrase")
+		bytepw, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			os.Exit(1)
+		}
+		input := string(bytepw)
+		block, _ := pem.Decode(rsaPrivateKey)
+		privbytes, err := x509.DecryptPEMBlock(block, []byte(input))
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Incorrect password")
+		}
+		key, err = x509.ParsePKCS1PrivateKey(privbytes)
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Error reading rsa private key")
+		}
+		ersDecryptor = ers.NewRSADecryptor(key)
+	} else if recoveryMethod == "2" {
+		ersHsmHelper = InitializeErsHsmHelper()
+	} else {
+		log.Fatal("Invalid choice")
 	}
 
 	recoveryData, err := os.ReadFile("liminal-recovery-package")
@@ -381,13 +395,20 @@ func startRecoveringECDSAPrivateKey() {
 		log.Fatal("Error reading recovery package")
 	}
 
-	ersDecryptor := ers.NewRSADecryptor(key)
 	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
 	if err != nil {
 		log.Println(err)
 		log.Fatal("Error decoding recovery package")
 	}
-	_, privateKeyASN1, masterChainCode, err := ers.RecoverPrivateKey(ersDecryptor, []byte(""), ecdsaRecoveryData, []uint32{})
+
+	var privateKeyASN1, masterChainCode []byte
+
+	if recoveryMethod == string(IN_FILE_PRIVATE_KEY) {
+		_, privateKeyASN1, masterChainCode, err = ers.RecoverPrivateKey(ersDecryptor, []byte(""), ecdsaRecoveryData, []uint32{})
+	} else {
+		_, privateKeyASN1, masterChainCode, err = ers.RecoverPrivateKey(ersHsmHelper, []byte(""), ecdsaRecoveryData, []uint32{})
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -397,20 +418,39 @@ func startRecoveringECDSAPrivateKey() {
 		log.Println(err)
 		log.Fatal("Error decoding private key")
 	}
-	encryptedBytes, err := rsa.EncryptOAEP(
-		sha256.New(),
-		rand.Reader,
-		&key.PublicKey,
-		[]byte(privateKeyProduction),
-		nil)
+
+	plaintext := []byte(privateKeyProduction)
+	var label []byte = nil
+
+	var encryptedBytes []byte
+
+	if recoveryMethod == string(IN_FILE_PRIVATE_KEY) {
+		if key == nil {
+			log.Fatal("Invalid private key")
+		}
+
+		encryptedBytes, err = rsa.EncryptOAEP(
+			sha256.New(),
+			rand.Reader,
+			&key.PublicKey,
+			plaintext,
+			label,
+		)
+	} else {
+		encryptedBytes, err = ersHsmHelper.Encrypt(plaintext, label)
+	}
+
 	if err != nil {
 		panic(err)
 	}
+
 	err = os.WriteFile("liminal-ecdsa-private-backup-key", encryptedBytes, 0644)
 	if err != nil {
 		log.Println("Error writing recovery info to file")
 		log.Fatal(err)
 	}
+
+	var input string
 	fmt.Println("Do you want to reveal the private key? (y/n)")
 	_, err = fmt.Scanln(&input)
 	if err != nil {
@@ -424,32 +464,44 @@ func startRecoveringECDSAPrivateKey() {
 }
 
 func startRecoveringEDDSAPrivateKey() {
-	rsaPrivateKey, err := os.ReadFile("liminal-recovery-key-pair-private-key.pem")
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading rsa private key")
-	}
+	recoveryMethod := TakeInput("Please choose recovery method\n1. Using RSA private key file\n2. Using HSM token")
 
-	fmt.Println("WARNING: PERFORM THIS ACTION ONLY ON OFFLINE COMPUTER\n" +
-		"Please make sure the recovery package file with name liminal-recovery-package and recovery key pair private key file with name liminal-recovery-key-pair-private-key is in the current folder.\n" +
-		"Enter Recovery key pair passphrase")
-	bytepw, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		os.Exit(1)
+	var key *rsa.PrivateKey
+
+	var ersDecryptor ers.Decryptor
+	var ersHsmHelper *ErsHsmHelper
+
+	if recoveryMethod == string(IN_FILE_PRIVATE_KEY) {
+		rsaPrivateKey, err := os.ReadFile("liminal-recovery-key-pair-private-key.pem")
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Error reading rsa private key")
+		}
+
+		fmt.Println("WARNING: PERFORM THIS ACTION ONLY ON OFFLINE COMPUTER\n" +
+			"Please make sure the recovery package file with name liminal-recovery-package and recovery key pair private key file with name liminal-recovery-key-pair-private-key is in the current folder.\n" +
+			"Enter Recovery key pair passphrase")
+		bytepw, err := term.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			os.Exit(1)
+		}
+		input := string(bytepw)
+		block, _ := pem.Decode(rsaPrivateKey)
+		privbytes, err := x509.DecryptPEMBlock(block, []byte(input))
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Incorrect password")
+		}
+		key, err = x509.ParsePKCS1PrivateKey(privbytes)
+		if err != nil {
+			log.Println(err)
+			log.Fatal("Error reading rsa private key")
+		}
+	} else if recoveryMethod == string(HSM_TOKEN) {
+		ersHsmHelper = InitializeErsHsmHelper()
+	} else {
+		log.Fatal("Invalid choice")
 	}
-	input := string(bytepw)
-	block, _ := pem.Decode(rsaPrivateKey)
-	privbytes, err := x509.DecryptPEMBlock(block, []byte(input))
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Incorrect password")
-	}
-	key, err := x509.ParsePKCS1PrivateKey(privbytes)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading rsa private key")
-	}
-	rsaPublicKey := &key.PublicKey
 
 	recoveryData, err := os.ReadFile("liminal-recovery-package")
 	if err != nil {
@@ -464,6 +516,7 @@ func startRecoveringEDDSAPrivateKey() {
 		log.Fatal("Error reading recovery package")
 	}
 
+	var input string
 	fmt.Println("Enter BIP 32 Path (It looks like m/XX/YY/A/B/C)")
 	_, err = fmt.Scanln(&input)
 	if err != nil {
@@ -491,7 +544,20 @@ func startRecoveringEDDSAPrivateKey() {
 		log.Println(err)
 		log.Fatal("Error decoding recovery info")
 	}
-	ellipticCurve, privateKeyASN1, masterChainCode := recoverEDDSAPrivateKey(key, eddsaRecoveryData, chainpath)
+
+	var ellipticCurve string
+	var privateKeyASN1, masterChainCode []byte
+
+	if recoveryMethod == string(IN_FILE_PRIVATE_KEY) {
+		ellipticCurve, privateKeyASN1, masterChainCode, err = ers.RecoverPrivateKey(ersDecryptor, []byte(""), eddsaRecoveryData, chainpath)
+	} else {
+		ellipticCurve, privateKeyASN1, masterChainCode, err = ers.RecoverPrivateKey(ersHsmHelper, []byte(""), eddsaRecoveryData, chainpath)
+	}
+	if err != nil {
+		log.Println("Error recovering eddsa private key")
+		log.Fatal(err)
+	}
+
 	curve, err := math.NewCurve(ellipticCurve)
 	privateKeyScalar := curve.NewScalarBytes(privateKeyASN1)
 	publicKey := curve.G().Mul(privateKeyScalar)
@@ -500,12 +566,23 @@ func startRecoveringEDDSAPrivateKey() {
 	masterChainCodeProduction := hex.EncodeToString(masterChainCode)
 	eddsaData := "Derived Private key\n" + privateKeyProduction + "\nMaster chain code" + masterChainCodeProduction
 
-	encryptedBytes, err := rsa.EncryptOAEP(
-		sha256.New(),
-		rand.Reader,
-		rsaPublicKey,
-		[]byte(eddsaData),
-		nil)
+	plaintext := []byte(eddsaData)
+	var label []byte = nil
+
+	var encryptedBytes []byte
+
+	if recoveryMethod == string(IN_FILE_PRIVATE_KEY) {
+		encryptedBytes, err = rsa.EncryptOAEP(
+			sha256.New(),
+			rand.Reader,
+			&key.PublicKey,
+			plaintext,
+			label,
+		)
+	} else {
+		encryptedBytes, err = ersHsmHelper.Encrypt(plaintext, label)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -703,7 +780,7 @@ func verifyRecoveryPackage() {
 
 		ersDecryptor = ers.NewRSADecryptor(key)
 	} else if verifyMethod == "2" {
-		ersDecryptor = InitializeErsHsmDecryptor()
+		ersDecryptor = InitializeErsHsmHelper()
 	} else {
 		log.Fatal("Invalid choice")
 	}

@@ -135,7 +135,7 @@ func getRecoveryInfoFromPackage(algorithm string, recoveryType int, input string
 func getRecoveryPackageType() int {
 	var recoveryType string
 
-	fmt.Println("Please select backup type.\n" + "1. Server backup\n" + "2. Mobile backup")
+	fmt.Println("Please select backup type (1/2)\n" + "1. Server backup\n" + "2. Mobile backup")
 	_, err := fmt.Scanln(&recoveryType)
 	if err != nil {
 		log.Fatal(err)

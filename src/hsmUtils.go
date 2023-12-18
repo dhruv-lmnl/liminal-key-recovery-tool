@@ -114,7 +114,7 @@ func GenerateRsaKeypair() error {
 	path, pin, keyId, keyName, tokenLabel := GetHsmConfig()
 
 	var recreate bool
-	switch input := TakeInput("Please select option.\n" + "1. Recreate keypair, if existing found\n" + "2. Skip keypair generation, if existing found"); input {
+	switch input := TakeInput("Please select option (1/2)\n" + "1. Recreate keypair, if existing found\n" + "2. Skip keypair generation, if existing found"); input {
 	case "1":
 		recreate = true
 	case "2":

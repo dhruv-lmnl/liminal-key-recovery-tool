@@ -636,7 +636,7 @@ func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
 	pin = TakePinInput("Please enter user pin")
 
 	keyId, keyName = "", ""
-	switch input := TakeInput("Please select option.\n" + "1. Enter key id\n" + "2. Enter key name"); input {
+	switch input := TakeInput("Please select option (1/2)\n" + "1. Enter key id\n" + "2. Enter key name"); input {
 	case "1":
 		keyId = TakeInput("Please enter key id")
 	case "2":
@@ -646,7 +646,7 @@ func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
 	}
 
 	tokenLabel = ""
-	switch input := TakeInput("Please select option.\n" + "1. Enter token label\n" + "2. Skip"); input {
+	switch input := TakeInput("Please select option (1/2)\n" + "1. Enter token label\n" + "2. Skip"); input {
 	case "1":
 		tokenLabel = TakeInput("Enter token label")
 	case "2":

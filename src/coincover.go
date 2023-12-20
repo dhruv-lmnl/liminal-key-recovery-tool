@@ -70,7 +70,7 @@ func CoincoverBackup() {
 	err = coincoverClient.Store(encryptResponse, publicKeyResponse)
 	handleError("failed to store encrypted data with coincover", err)
 
-	fmt.Println("\nFile encrypted and stored successfully")
+	fmt.Println("\nFile encrypted and stored with Coincover successfully")
 }
 
 func CoincoverRecovery() {

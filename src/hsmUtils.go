@@ -218,7 +218,6 @@ func DeleteRsaKeypair() error {
 	}
 
 	if len(pbks) == 0 {
-		log.Println(err)
 		log.Fatal("Error finding public object handle")
 		return err
 	}
@@ -231,7 +230,6 @@ func DeleteRsaKeypair() error {
 	}
 
 	if len(pvks) == 0 {
-		log.Println(err)
 		log.Fatal("Error deleting rsa keypair")
 		return err
 	}
@@ -275,7 +273,6 @@ func ExportPublicKey() error {
 	}
 
 	if len(pbks) == 0 {
-		log.Println(err)
 		log.Fatal("Error finding public object handle")
 		return err
 	}
@@ -537,9 +534,11 @@ func getPublicObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId, 
 	var publicKeyAttributes []*pkcs11.Attribute
 	if keyId != "" {
 		publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_ID, keyId))
-	} else if keyName != "" {
+	}
+	if keyName != "" {
 		publicKeyAttributes = append(publicKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_LABEL, keyName))
-	} else {
+	}
+	if keyId == "" && keyName == "" {
 		return []pkcs11.ObjectHandle{}, errors.New("keyId or keyName is required field")
 	}
 
@@ -570,9 +569,11 @@ func getPrivateObjectHandles(p *pkcs11.Ctx, session pkcs11.SessionHandle, keyId,
 	var privateKeyAttributes []*pkcs11.Attribute
 	if keyId != "" {
 		privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_ID, keyId))
-	} else if keyName != "" {
+	}
+	if keyName != "" {
 		privateKeyAttributes = append(privateKeyAttributes, pkcs11.NewAttribute(pkcs11.CKA_LABEL, keyName))
-	} else {
+	}
+	if keyId == "" && keyName == "" {
 		return []pkcs11.ObjectHandle{}, errors.New("keyId or keyName is required field")
 	}
 

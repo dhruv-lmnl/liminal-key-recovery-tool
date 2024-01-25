@@ -11,9 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -120,75 +118,28 @@ func startGeneratingRecoveryInfo() {
 	fmt.Println("Please provide secure credentials to connect to Liminal Express MPC server (TSM server for older versions)")
 	var tsmCredentials TSMCredentials
 
-	var input string
-	fmt.Println("Enter Client ID:")
-
-	_, err := fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.ClientId = input
-	fmt.Println("Enter Client Secret:")
-
-	_, err = fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.ClientSecret = input
-	fmt.Println("Enter TSM URL:")
-
-	_, err = fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.Url = input
-
-	fmt.Println("Enter TSM UserID:")
-
-	_, err = fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.UserID = input
-
-	fmt.Println("Enter TSM Password:")
-
-	_, err = fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.Password = input
-
-	fmt.Println("Enter TSM Public Key:")
-
-	_, err = fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tsmCredentials.TSMPublicKey = input
+	tsmCredentials.ClientId = TakeInput("Enter Client ID:")
+	tsmCredentials.ClientSecret = TakeInput(("Enter Client Secret:"))
+	tsmCredentials.Url = TakeInput("Enter TSM URL:")
+	tsmCredentials.UserID = TakeInput("Enter TSM UserID:")
+	tsmCredentials.Password = TakeInput("Enter TSM Password:")
+	tsmCredentials.TSMPublicKey = TakeInput("Enter TSM Public Key:")
 
 	if tsmCredentials.Url == "" || tsmCredentials.Password == "" || tsmCredentials.UserID == "" || tsmCredentials.TSMPublicKey == "" {
 		log.Fatal("Invalid TSM credentials")
 	}
 
 	rsaPublicKey, err := os.ReadFile("liminal-recovery-key-pair-public-key.pem")
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading rsa public key")
-	}
+	checkError(err, "Error reading rsa public key")
 
 	block, _ := pem.Decode(rsaPublicKey)
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		if strings.Contains(err.Error(), "use ParsePKCS1PublicKey instead for this key format") {
 			key, err = x509.ParsePKCS1PublicKey(block.Bytes)
-			if err != nil {
-				log.Println(err)
-				log.Fatal("Error reading pkcs11 public key")
-			}
+			checkError(err, "Error reading pkcs11 public key")
 		} else {
-			log.Println(err)
-			log.Fatal("Error reading public key")
+			checkError(err, "Error reading public key")
 		}
 	}
 
@@ -344,32 +295,19 @@ func startRecoveringECDSAPrivateKey() {
 	recoveryMethod, recoveryInfo, key, ersHsmHelper, ersDecryptor := handleRecoveryMethodAndType(ECDSA)
 
 	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decoding recovery package")
-	}
+	checkError(err, "Error decoding recovery package")
 
 	_, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, ecdsaRecoveryData, []uint32{})
 
 	privateKeyProduction, err := encodeKey(false, true, privateKeyASN1, masterChainCode)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decoding private key")
-	}
+	checkError(err, "Error decoding private key")
 
-	plaintext := []byte(privateKeyProduction)
-	var label []byte = nil
-
-	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, plaintext, label)
+	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, []byte(privateKeyProduction), nil)
 
 	err = os.WriteFile("liminal-ecdsa-private-backup-key", encryptedBytes, 0644)
-	if err != nil {
-		log.Println("Error writing recovery info to file")
-		log.Fatal(err)
-	}
+	checkError(err, "Error writing recovery info to file")
 
-	input := TakeInput("Do you want to reveal the private key? (y/n)")
-	if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
+	if askForConfirmation("Do you want to reveal the private key?") {
 		fmt.Println("Derived ECDSA private backup key")
 		fmt.Println(privateKeyProduction)
 	}
@@ -378,32 +316,16 @@ func startRecoveringECDSAPrivateKey() {
 func startRecoveringEDDSAPrivateKey() {
 	recoveryMethod, recoveryInfo, key, ersHsmHelper, ersDecryptor := handleRecoveryMethodAndType(EDDSA)
 
-	input := TakeInput("Enter BIP 32 Path (It looks like m/XX/YY/A/B/C)")
-
-	var chainpath []uint32
-
-	bip32Path := strings.Split(input, "/")
-	for i, value := range bip32Path {
-		if i == 0 && value == "m" {
-			continue
-		}
-		bipIndex, err := strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			log.Println(err)
-			log.Fatal("Invalid path")
-		}
-		chainpath = append(chainpath, uint32(bipIndex))
-	}
+	chainpath := getBIP32Path()
 
 	eddsaRecoveryData, err := hex.DecodeString(recoveryInfo.EddsaRecoveryInfo)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decoding recovery info")
-	}
+	checkError(err, "Error decoding recovery info")
 
 	ellipticCurve, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, eddsaRecoveryData, chainpath)
 
 	curve, err := math.NewCurve(ellipticCurve)
+	checkError(err, "Error creating new curve")
+
 	privateKeyScalar := curve.NewScalarBytes(privateKeyASN1)
 	publicKey := curve.G().Mul(privateKeyScalar)
 	privateKeyProduction := hex.EncodeToString(privateKeyASN1)
@@ -411,22 +333,15 @@ func startRecoveringEDDSAPrivateKey() {
 	masterChainCodeProduction := hex.EncodeToString(masterChainCode)
 	eddsaData := "Derived Private key\n" + privateKeyProduction + "\nMaster chain code" + masterChainCodeProduction
 
-	plaintext := []byte(eddsaData)
-	var label []byte = nil
-
-	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, plaintext, label)
-
-	if err != nil {
-		panic(err)
-	}
+	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, []byte(eddsaData), nil)
 
 	err = os.WriteFile("liminal-eddsa-private-backup-key", encryptedBytes, 0644)
 	if err != nil {
 		log.Println("Error writing recovery info to file")
 		log.Fatal(err)
 	}
-	input = TakeInput("Do you want to reveal the private key? (y/n)")
-	if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
+
+	if askForConfirmation("Do you want to reveal the private key?") {
 		fmt.Println("Master chain code")
 		fmt.Println(masterChainCodeProduction)
 		fmt.Println("Derived EDDSA public backup key")
@@ -434,7 +349,6 @@ func startRecoveringEDDSAPrivateKey() {
 		fmt.Println("Derived EDDSA private backup key")
 		fmt.Println(privateKeyProduction)
 	}
-
 }
 
 func startGeneratingRSAKey() {
@@ -529,11 +443,7 @@ func verifyRSAKey() {
 		log.Fatal("Error reading rsa private key")
 	}
 
-	fmt.Println("Enter Recovery key pair passphrase")
-	bytepw, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		os.Exit(1)
-	}
+	bytepw := TakePasswordInput("Enter Recovery key pair passphrase")
 	input := string(bytepw)
 	if input == "" {
 		fmt.Println("Password cannot be empty")
@@ -576,62 +486,8 @@ func verifyRSAKey() {
 func verifyRecoveryPackage() {
 	recoveryMethod, recoveryInfo, _, ersHsmHelper, ersDecryptor := handleRecoveryMethodAndType("")
 
-	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decoding recovery package")
-	}
-	ellipticCurve, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, ecdsaRecoveryData, []uint32{})
+	verifyECDSAPublicKey(recoveryMethod, recoveryInfo, ersHsmHelper, ersDecryptor)
+	verifyEDDSAPublicKey(recoveryMethod, recoveryInfo, ersHsmHelper, ersDecryptor)
 
-	var publicKeyProduction string
-
-	curve, err := math.NewCurve(ellipticCurve)
-	privateMasterKey := curve.NewScalarBytes(privateKeyASN1)
-	publicMasterKey := curve.G().Mul(privateMasterKey)
-
-	if strings.HasPrefix(recoveryInfo.EcdsaPublicKey, "xpub") {
-		curveName := "secp256k1"
-		curve := curveFromName[curveName]
-
-		recoveredPK := curve.g().mul(new(big.Int).SetBytes(privateKeyASN1))
-		b, err := encodePoint(recoveredPK)
-		publicKeyProduction, err = encodeKey(true, true, b, masterChainCode)
-		if err != nil {
-			log.Println("Error decoding public key")
-			log.Fatal(err)
-		}
-		if publicKeyProduction != recoveryInfo.EcdsaPublicKey {
-			log.Fatal("Error verifying ecdsa public key")
-		}
-	} else {
-		publicKeyFromPrivateKey := hex.EncodeToString(publicMasterKey.Encode())
-		asn1PublicKey, err := hex.DecodeString(recoveryInfo.EcdsaPublicKey)
-		parsedPublicKey, err := parseASN1PublicKey(asn1PublicKey)
-		if err != nil {
-			log.Println(err)
-			log.Fatal("Error parsing public key")
-		}
-		publicKeyKeyFile := hex.EncodeToString(parsedPublicKey)
-
-		if publicKeyKeyFile != publicKeyFromPrivateKey {
-			log.Fatal("Error verifying ecdsa public key")
-		}
-	}
-
-	eddsaRecoveryData, err := hex.DecodeString(recoveryInfo.EddsaRecoveryInfo)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error decoding recovery info")
-	}
-
-	ellipticCurve, privateKeyASN1, masterChainCode = handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, eddsaRecoveryData, []uint32{})
-
-	curve2, err := math.NewCurve(ellipticCurve)
-	privateKeyScalar := curve2.NewScalarBytes(privateKeyASN1)
-	publicKey := curve2.G().Mul(privateKeyScalar)
-	publicKeyProduction = hex.EncodeToString(publicKey.Encode())
-	if publicKeyProduction != strings.ToLower(recoveryInfo.EddsaPublicKey) {
-		log.Fatal("Error verifying eddsa public key")
-	}
 	fmt.Println("Recovery package verification successful")
 }

@@ -7,13 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
-	"syscall"
 
 	"github.com/miekg/pkcs11"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/term"
 )
 
 /*
@@ -693,39 +690,4 @@ func cleanup(p *pkcs11.Ctx, session pkcs11.SessionHandle) {
 	p.Finalize()
 	p.CloseSession(session)
 	p.Logout(session)
-}
-
-func TakeInput(text string) string {
-	var input string
-
-	fmt.Println(text)
-	_, err := fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-		return ""
-	}
-
-	return input
-}
-
-func TakePasswordInput(text string) string {
-	fmt.Println(text)
-	bytepw, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		log.Fatal(err)
-		return ""
-	}
-
-	return string(bytepw)
-}
-
-func SaveFile(name, content string) error {
-	file, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	file.WriteString(content)
-
-	return nil
 }

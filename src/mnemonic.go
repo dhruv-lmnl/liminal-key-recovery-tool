@@ -14,15 +14,10 @@ import (
 )
 
 func StartMnemonicRecovery() {
-	var input string
-
 	var wordNum int64
+	var err error
 
-	fmt.Println("Please enter number of mnemonic words (12/24).")
-	_, err := fmt.Scanln(&input)
-	if err != nil {
-		log.Fatal(err)
-	}
+	input := TakeInput("Please enter number of mnemonic words (12/24).")
 	switch input {
 	case "12", "24":
 		wordNum, err = strconv.ParseInt(input, 10, 0)
@@ -38,16 +33,7 @@ func StartMnemonicRecovery() {
 	var mnemonic []string
 
 	for i := 0; i < int(wordNum); i++ {
-		_, err := fmt.Scanln(&input)
-		if err != nil {
-			if i == 12 {
-				break
-			} else {
-				log.Fatal(err)
-			}
-		}
-
-		mnemonic = append(mnemonic, input)
+		mnemonic = append(mnemonic, TakeInput(""))
 	}
 
 	mnemonicPhrase := strings.Join(mnemonic, " ")
@@ -56,14 +42,9 @@ func StartMnemonicRecovery() {
 		log.Fatal("Invalid mnemonic words entered")
 	}
 
-	fmt.Println("Verify mnemonic phrase, please enter again.")
+	fmt.Println("Verify mnemonic phrase, press enter after each word.")
 	for i := 0; i < len(mnemonic); i++ {
-		_, err := fmt.Scanln(&input)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if input != mnemonic[i] {
+		if TakeInput("") != mnemonic[i] {
 			log.Fatal("Word does not match")
 		}
 	}

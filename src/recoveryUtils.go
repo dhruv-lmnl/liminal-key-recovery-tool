@@ -10,16 +10,19 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
 	"strings"
 
 	"gitlab.com/sepior/ers-lib/ers"
+	"gitlab.com/sepior/ers-lib/math"
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -124,12 +127,6 @@ func handleEncryptRecoveredPrivateKey(recoveryMethod RecoveryMethod, ersHsmHelpe
 	return encryptedBytes
 }
 
-func getRecoveryInfoAndPrivateKeyFromServerBackup(password string) (*RecoveryInfo, *rsa.PrivateKey) {
-	recoveryInfo := getRecoveryInfoFromServerBackup()
-	privateKey := readPrivateKeyFromPemFile(password)
-	return recoveryInfo, privateKey
-}
-
 func readPrivateKeyFromPemFile(password string) *rsa.PrivateKey {
 	rsaPrivateKey, err := os.ReadFile("liminal-recovery-key-pair-private-key.pem")
 	if err != nil {
@@ -165,13 +162,6 @@ func getRecoveryInfoFromServerBackup() *RecoveryInfo {
 	}
 
 	return recoveryInfo
-}
-
-func getRecoveryInfoAndPrivateKeyFromMobileBackup(backupFileName string, password string, algorithm string) (*RecoveryInfo, *rsa.PrivateKey) {
-	backupFileData, encryptedPrivateKey, keysData := unzipRecoveryPackage(backupFileName)
-	privateKey := getPrivateKeyFromMobileBackupDataAndEncryptedPrivateKey(backupFileData, encryptedPrivateKey, password)
-	recoveryInfo := getRecoveryInfoFromMobileKeysData(keysData, algorithm)
-	return recoveryInfo, privateKey
 }
 
 func getRecoveryInfoFromMobileBackup(backupFileName string, algorithm string) *RecoveryInfo {
@@ -416,4 +406,70 @@ func getRecoveryDataForKey(keyId string, keysData []KeyData) *RecoveryInfo {
 
 	log.Fatal("Invalid algorithm")
 	return nil
+}
+
+func verifyECDSAPublicKey(recoveryMethod RecoveryMethod, recoveryInfo *RecoveryInfo, ersHsmHelper *ErsHsmHelper, ersDecryptor ers.Decryptor) {
+	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
+	checkError(err, "Error decoding recovery package")
+
+	ellipticCurve, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, ecdsaRecoveryData, []uint32{})
+
+	curve, err := math.NewCurve(ellipticCurve)
+	checkError(err, "Error creating new curve")
+
+	privateMasterKey := curve.NewScalarBytes(privateKeyASN1)
+	publicMasterKey := curve.G().Mul(privateMasterKey)
+
+	if strings.HasPrefix(recoveryInfo.EcdsaPublicKey, "xpub") {
+		verifyXpubPublicKey(recoveryInfo, privateKeyASN1, masterChainCode)
+	} else {
+		verifyHexPublicKey(recoveryInfo, publicMasterKey)
+	}
+}
+
+func verifyXpubPublicKey(recoveryInfo *RecoveryInfo, privateKeyASN1 []byte, masterChainCode []byte) {
+	curveName := SECP256K1
+	curve := curveFromName[curveName]
+
+	recoveredPK := curve.g().mul(new(big.Int).SetBytes(privateKeyASN1))
+	b, err := encodePoint(recoveredPK)
+	checkError(err, "Error decoding public key")
+
+	publicKeyProduction, err := encodeKey(true, true, b, masterChainCode)
+	checkError(err, "Error decoding public key")
+
+	if publicKeyProduction != recoveryInfo.EcdsaPublicKey {
+		log.Fatal("Error verifying ecdsa public key")
+	}
+}
+
+func verifyHexPublicKey(recoveryInfo *RecoveryInfo, publicMasterKey math.Point) {
+	asn1PublicKey, err := hex.DecodeString(recoveryInfo.EcdsaPublicKey)
+	checkError(err, "Error decoding public key")
+
+	parsedPublicKey, err := parseASN1PublicKey(asn1PublicKey)
+	checkError(err, "Error parsing public key")
+
+	publicKeyKeyFile := hex.EncodeToString(parsedPublicKey)
+	publicKeyFromPrivateKey := hex.EncodeToString(publicMasterKey.Encode())
+
+	if publicKeyKeyFile != publicKeyFromPrivateKey {
+		log.Fatal("Error verifying ecdsa public key")
+	}
+}
+
+func verifyEDDSAPublicKey(recoveryMethod RecoveryMethod, recoveryInfo *RecoveryInfo, ersHsmHelper *ErsHsmHelper, ersDecryptor ers.Decryptor) {
+	eddsaRecoveryData, err := hex.DecodeString(recoveryInfo.EddsaRecoveryInfo)
+	checkError(err, "Error decoding recovery info")
+
+	ellipticCurve, privateKeyASN1, _ := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, eddsaRecoveryData, []uint32{})
+
+	curve, _ := math.NewCurve(ellipticCurve)
+	privateKeyScalar := curve.NewScalarBytes(privateKeyASN1)
+	publicKey := curve.G().Mul(privateKeyScalar)
+	publicKeyProduction := hex.EncodeToString(publicKey.Encode())
+
+	if publicKeyProduction != strings.ToLower(recoveryInfo.EddsaPublicKey) {
+		log.Fatal("Error verifying eddsa public key")
+	}
 }

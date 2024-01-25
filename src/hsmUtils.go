@@ -634,7 +634,7 @@ func (ersHelper ErsHsmHelper) Encrypt(plaintext, label []byte) (ciphertext []byt
 
 func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
 	path = TakeInput("Please enter pkcs11 lib path")
-	pin = TakePinInput("Please enter user pin")
+	pin = TakePasswordInput("Please enter user pin")
 
 	keyId, keyName = "", ""
 	switch input := TakeInput("Please select option (1/2)\n" + "1. Enter key id\n" + "2. Enter key name"); input {
@@ -708,7 +708,7 @@ func TakeInput(text string) string {
 	return input
 }
 
-func TakePinInput(text string) string {
+func TakePasswordInput(text string) string {
 	fmt.Println(text)
 	bytepw, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {

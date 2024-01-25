@@ -11,8 +11,8 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0
 	gitlab.com/sepior/ers-lib v0.0.0-20230607071522-f09d8c003a84
 	gitlab.com/sepior/go-tsm-sdk v0.0.0-20230510084744-b59f88e4034b
-	golang.org/x/crypto v0.11.0
-	golang.org/x/term v0.10.0
+	golang.org/x/crypto v0.13.0
+	golang.org/x/term v0.12.0
 )
 
 require (
@@ -20,6 +20,7 @@ require (
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/ethereum/go-ethereum v1.10.4 // indirect
+	github.com/stretchr/testify v1.8.2 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 )

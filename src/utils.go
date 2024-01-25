@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -30,8 +31,24 @@ type GetPartialRecoveryResponse struct {
 type RecoveryMethod string
 
 const (
-	IN_FILE_PRIVATE_KEY RecoveryMethod = "1"
-	HSM_TOKEN           RecoveryMethod = "2"
+	LOCAL_PRIVATE_KEY  RecoveryMethod = "1"
+	HSM_TOKEN          RecoveryMethod = "2"
+	MOBILE_PRIVATE_KEY RecoveryMethod = "3"
+)
+
+type RecoveryType string
+
+const (
+	MOBILE RecoveryType = "1"
+	SERVER RecoveryType = "2"
+)
+
+const (
+	ECDSA     string = "ecdsa"
+	SECP256K1 string = "secp256k1"
+
+	EDDSA   string = "eddsa"
+	ED25519 string = "ed25519"
 )
 
 const apiUrl = "https://api.lmnl.app"
@@ -481,4 +498,24 @@ func encodePoint(p point) ([]byte, error) {
 	}
 	_, _ = pBuf.Write(p.x.Bytes())
 	return pBuf.Bytes(), nil
+}
+
+func parseASN1PublicKey(skBytes []byte) ([]byte, error) {
+	//SEQUENCE (3 elem)
+	//  INTEGER 1
+	//  OCTET STRING (32 byte) E15AECACD7CB3304435D1FCCBA1132449E74FDA2EE2205516D165015E2041E1B
+	//  [0] (1 elem)
+	//    OBJECT IDENTIFIER 1.3.132.0.10 secp256k1 (SECG (Certicom) named elliptic curve)
+	type ASN1Key struct {
+		Seq interface{}
+		Key asn1.BitString
+	}
+	var key ASN1Key
+	rest, err := asn1.Unmarshal(skBytes, &key)
+	if err != nil {
+		return nil, err
+	} else if len(rest) > 0 {
+		return nil, fmt.Errorf("ASN1 struct contains additional data: %v", rest)
+	}
+	return key.Key.Bytes, nil
 }

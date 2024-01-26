@@ -278,7 +278,7 @@ func getRecoveryPackageType() RecoveryType {
 }
 
 func getRecoveryMethod() RecoveryMethod {
-	recoveryMethod := TakeInput("Please choose recovery method (1/2)\n1. Using local RSA private key file\n2. Using HSM token\n3. Using encrypted private key file in mobile backup.")
+	recoveryMethod := TakeInput("Please choose recovery method (1/2/3)\n1. Using local RSA private key file\n2. Using HSM token\n3. Using encrypted private key file in mobile backup.")
 
 	if recoveryMethod == "1" {
 		return LOCAL_PRIVATE_KEY
@@ -392,7 +392,7 @@ func getAlgorithmKeyId(algorithm string, keysData []KeyData) []string {
 func getRecoveryDataForKey(keyId string, keysData []KeyData) *RecoveryInfo {
 	for _, keyData := range keysData {
 		if keyData.KeyId == keyId {
-			var recoveryData *RecoveryInfo
+			recoveryData := &RecoveryInfo{}
 			if keyData.Algorithm == ECDSA {
 				recoveryData.EcdsaRecoveryInfo = keyData.RecoveryKey
 				recoveryData.EcdsaPublicKey = keyData.PublicKey

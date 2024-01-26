@@ -35,10 +35,10 @@ type KeyData struct {
 
 func handleRecoveryMethodAndType(algorithm string) (RecoveryMethod, *RecoveryInfo, *rsa.PrivateKey, *ErsHsmHelper, ers.Decryptor) {
 	recoveryType := getRecoveryPackageType()
-	recoveryMethod := getRecoveryMethod()
+	recoveryMethod := getRecoveryMethod(recoveryType)
 
 	var key *rsa.PrivateKey
-	var recoveryInfo *RecoveryInfo
+	recoveryInfo := &RecoveryInfo{}
 
 	var ersDecryptor ers.Decryptor
 	var ersHsmHelper *ErsHsmHelper
@@ -104,7 +104,7 @@ func handleEncryptRecoveredPrivateKey(recoveryMethod RecoveryMethod, ersHsmHelpe
 	var encryptedBytes []byte
 	var err error
 
-	if recoveryMethod == LOCAL_PRIVATE_KEY {
+	if recoveryMethod == HSM_TOKEN {
 		encryptedBytes, err = ersHsmHelper.Encrypt(plainText, label)
 	} else {
 		if key == nil {
@@ -150,16 +150,11 @@ func readPrivateKeyFromPemFile(password string) *rsa.PrivateKey {
 
 func getRecoveryInfoFromServerBackup() *RecoveryInfo {
 	recoveryData, err := os.ReadFile("liminal-recovery-package")
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading recovery package")
-	}
-	var recoveryInfo *RecoveryInfo
+	checkError(err, "Error reading recovery package")
+
+	recoveryInfo := &RecoveryInfo{}
 	err = json.Unmarshal(recoveryData, recoveryInfo)
-	if err != nil {
-		log.Println(err)
-		log.Fatal("Error reading recovery package")
-	}
+	checkError(err, "Error parsing recovery package data")
 
 	return recoveryInfo
 }
@@ -170,7 +165,7 @@ func getRecoveryInfoFromMobileBackup(backupFileName string, algorithm string) *R
 }
 
 func getRecoveryInfoFromMobileKeysData(keysData []KeyData, algorithm string) *RecoveryInfo {
-	var recoveryInfo *RecoveryInfo
+	recoveryInfo := &RecoveryInfo{}
 
 	var algorithms []string
 	if algorithm == "" {
@@ -277,14 +272,19 @@ func getRecoveryPackageType() RecoveryType {
 	}
 }
 
-func getRecoveryMethod() RecoveryMethod {
-	recoveryMethod := TakeInput("Please choose recovery method (1/2/3)\n1. Using local RSA private key file\n2. Using HSM token\n3. Using encrypted private key file in mobile backup.")
+func getRecoveryMethod(recoveryType RecoveryType) RecoveryMethod {
+	var recoveryMethod string
+	if recoveryType == SERVER {
+		recoveryMethod = TakeInput("Please choose recovery method (1/2)\n1. Using local RSA private key file\n2. Using HSM token")
+	} else {
+		recoveryMethod = TakeInput("Please choose recovery method (1/2/3)\n1. Using local RSA private key file\n2. Using HSM token\n3. Using encrypted private key file in mobile backup")
+	}
 
 	if recoveryMethod == "1" {
 		return LOCAL_PRIVATE_KEY
 	} else if recoveryMethod == "2" {
 		return HSM_TOKEN
-	} else if recoveryMethod == "3" {
+	} else if recoveryMethod == "3" && recoveryType == MOBILE {
 		return MOBILE_PRIVATE_KEY
 	} else {
 		log.Fatal("Invalid input")

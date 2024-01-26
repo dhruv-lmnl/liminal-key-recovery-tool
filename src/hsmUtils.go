@@ -652,6 +652,8 @@ func GetHsmConfig() (path, pin, keyId, keyName, tokenLabel string) {
 		log.Fatal("Invalid input")
 	}
 
+	fmt.Println("HSM operations can take some time, please wait for a response.")
+
 	return path, pin, keyId, keyName, tokenLabel
 }
 

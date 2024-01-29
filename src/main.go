@@ -302,7 +302,7 @@ func startRecoveringECDSAPrivateKey() {
 	privateKeyProduction, err := encodeKey(false, true, privateKeyASN1, masterChainCode)
 	checkError(err, "Error decoding private key")
 
-	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, []byte(privateKeyProduction), nil)
+	encryptedBytes := handleEncryptRecoveredData(recoveryMethod, ersHsmHelper, key, []byte(privateKeyProduction), nil)
 
 	err = os.WriteFile("liminal-ecdsa-private-backup-key", encryptedBytes, 0644)
 	checkError(err, "Error writing recovery info to file")
@@ -333,7 +333,7 @@ func startRecoveringEDDSAPrivateKey() {
 	masterChainCodeProduction := hex.EncodeToString(masterChainCode)
 	eddsaData := "Derived Private key\n" + privateKeyProduction + "\nMaster chain code" + masterChainCodeProduction
 
-	encryptedBytes := handleEncryptRecoveredPrivateKey(recoveryMethod, ersHsmHelper, key, []byte(eddsaData), nil)
+	encryptedBytes := handleEncryptRecoveredData(recoveryMethod, ersHsmHelper, key, []byte(eddsaData), nil)
 
 	err = os.WriteFile("liminal-eddsa-private-backup-key", encryptedBytes, 0644)
 	if err != nil {

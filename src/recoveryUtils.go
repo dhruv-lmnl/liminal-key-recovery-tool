@@ -33,11 +33,11 @@ type KeyData struct {
 	PublicKey   string `json:"publickey"`
 }
 
-func handleRecoveryMethodAndType(algorithm string) (RecoveryMethod, *RecoveryInfo, *rsa.PrivateKey, *ErsHsmHelper, ers.Decryptor) {
+func handleRecoveryMethodAndType(algorithm string) (RecoveryMethod, *RecoveryInfo, *rsa.PublicKey, *ErsHsmHelper, ers.Decryptor) {
 	recoveryType := getRecoveryPackageType()
 	recoveryMethod := getRecoveryMethod(recoveryType)
 
-	var key *rsa.PrivateKey
+	key := &rsa.PrivateKey{}
 	recoveryInfo := &RecoveryInfo{}
 
 	var ersDecryptor ers.Decryptor
@@ -76,7 +76,7 @@ func handleRecoveryMethodAndType(algorithm string) (RecoveryMethod, *RecoveryInf
 		}
 	}
 
-	return recoveryMethod, recoveryInfo, key, ersHsmHelper, ersDecryptor
+	return recoveryMethod, recoveryInfo, &key.PublicKey, ersHsmHelper, ersDecryptor
 }
 
 func handleErsRecoverPrivateKey(recoveryMethod RecoveryMethod, ersHsmHelper *ErsHsmHelper, ersDecryptor ers.Decryptor, recoveryData []byte, chainPath []uint32) (string, []byte, []byte) {
@@ -100,29 +100,27 @@ func handleErsRecoverPrivateKey(recoveryMethod RecoveryMethod, ersHsmHelper *Ers
 	return ellipticCurve, privateKeyASN1, masterChainCode
 }
 
-func handleEncryptRecoveredPrivateKey(recoveryMethod RecoveryMethod, ersHsmHelper *ErsHsmHelper, key *rsa.PrivateKey, plainText []byte, label []byte) []byte {
+func handleEncryptRecoveredData(recoveryMethod RecoveryMethod, ersHsmHelper *ErsHsmHelper, rsaPublicKey *rsa.PublicKey, plainText []byte, label []byte) []byte {
 	var encryptedBytes []byte
 	var err error
 
 	if recoveryMethod == HSM_TOKEN {
 		encryptedBytes, err = ersHsmHelper.Encrypt(plainText, label)
 	} else {
-		if key == nil {
+		if rsaPublicKey == nil {
 			log.Fatal("Invalid private key")
 		}
 
 		encryptedBytes, err = rsa.EncryptOAEP(
 			sha256.New(),
 			rand.Reader,
-			&key.PublicKey,
+			rsaPublicKey,
 			plainText,
 			label,
 		)
 	}
 
-	if err != nil {
-		panic(err)
-	}
+	checkError(err, "Unable to encrypt recovered data")
 
 	return encryptedBytes
 }
@@ -181,7 +179,14 @@ func getRecoveryInfoFromMobileKeysData(keysData []KeyData, algorithm string) *Re
 			log.Fatalf("No keys found for %s algorithm", currentAlgorithm)
 			return nil
 		} else if len(keyIds) == 1 {
-			return getRecoveryDataForKey(keyIds[0], keysData)
+			algorithmRecoveryInfo := getRecoveryDataForKey(keyIds[0], keysData)
+			if currentAlgorithm == ECDSA {
+				recoveryInfo.EcdsaRecoveryInfo = algorithmRecoveryInfo.EcdsaRecoveryInfo
+				recoveryInfo.EcdsaPublicKey = algorithmRecoveryInfo.EcdsaPublicKey
+			} else if currentAlgorithm == EDDSA {
+				recoveryInfo.EddsaRecoveryInfo = algorithmRecoveryInfo.EddsaRecoveryInfo
+				recoveryInfo.EddsaPublicKey = algorithmRecoveryInfo.EddsaPublicKey
+			}
 		} else {
 			fmt.Printf("Multiple %s keys found. Please select the key to use for recovery. (1-%d)\n", currentAlgorithm, len(keyIds))
 			for i, key := range keyIds {
@@ -464,7 +469,9 @@ func verifyEDDSAPublicKey(recoveryMethod RecoveryMethod, recoveryInfo *RecoveryI
 
 	ellipticCurve, privateKeyASN1, _ := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, eddsaRecoveryData, []uint32{})
 
-	curve, _ := math.NewCurve(ellipticCurve)
+	curve, err := math.NewCurve(ellipticCurve)
+	checkError(err, "Error creating new curve")
+
 	privateKeyScalar := curve.NewScalarBytes(privateKeyASN1)
 	publicKey := curve.G().Mul(privateKeyScalar)
 	publicKeyProduction := hex.EncodeToString(publicKey.Encode())

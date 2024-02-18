@@ -76,6 +76,8 @@ func handleRecoveryMethodAndType(algorithm string) (RecoveryMethod, *RecoveryInf
 		}
 	}
 
+	fmt.Println("\nProcessing recovery data, please wait for a response.")
+
 	return recoveryMethod, recoveryInfo, &key.PublicKey, ersHsmHelper, ersDecryptor
 }
 

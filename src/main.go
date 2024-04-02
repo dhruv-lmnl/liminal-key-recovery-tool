@@ -297,7 +297,10 @@ func startRecoveringECDSAPrivateKey() {
 	ecdsaRecoveryData, err := hex.DecodeString(recoveryInfo.EcdsaRecoveryInfo)
 	checkError(err, "Error decoding recovery package")
 
-	_, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, ecdsaRecoveryData, []uint32{})
+	ellipticCurve, privateKeyASN1, masterChainCode := handleErsRecoverPrivateKey(recoveryMethod, ersHsmHelper, ersDecryptor, ecdsaRecoveryData, []uint32{})
+
+	curve, err := math.NewCurve(ellipticCurve)
+	checkError(err, "Error creating new curve")
 
 	privateKeyProduction, err := encodeKey(false, true, privateKeyASN1, masterChainCode)
 	checkError(err, "Error decoding private key")
@@ -310,6 +313,14 @@ func startRecoveringECDSAPrivateKey() {
 	if askForConfirmation("Do you want to reveal the private key?") {
 		fmt.Println("Derived ECDSA private backup key")
 		fmt.Println(privateKeyProduction)
+		fmt.Println("Derived ECDSA asn1 private backup key")
+		fmt.Println(hex.EncodeToString(privateKeyASN1))
+
+		privateKeyScalar := curve.NewScalarBytes(privateKeyASN1)
+		publicKey := curve.G().Mul(privateKeyScalar)
+		publicKeyProduction := hex.EncodeToString(publicKey.Encode())
+		fmt.Println("Derived ECDSA public backup key")
+		fmt.Println(publicKeyProduction)
 	}
 }
 

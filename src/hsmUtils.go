@@ -689,11 +689,8 @@ func initLoginHsm(path, pin, tokenLabel string) (*pkcs11.Ctx, pkcs11.SessionHand
 }
 
 func cleanup(p *pkcs11.Ctx, session pkcs11.SessionHandle) {
-	err := p.Logout(session)
-	handleError("failed to logout", err)
-	err = p.CloseSession(session)
-	handleError("failed to close session", err)
+	p.Logout(session)
+	p.CloseSession(session)
+	p.Finalize()
 	p.Destroy()
-	err = p.Finalize()
-	handleError("failed to finalize", err)
 }

@@ -94,9 +94,7 @@ func getPrivateKeyTemplate(keyId, keyName string) []*pkcs11.Attribute {
 		pkcs11.NewAttribute(pkcs11.CKA_LABEL, keyName),
 		pkcs11.NewAttribute(pkcs11.CKA_PRIVATE, true),
 		pkcs11.NewAttribute(pkcs11.CKA_SENSITIVE, true),
-		pkcs11.NewAttribute(pkcs11.CKA_WRAP_WITH_TRUSTED, false),
 		pkcs11.NewAttribute(pkcs11.CKA_UNWRAP, false),
-		pkcs11.NewAttribute(pkcs11.CKA_EXTRACTABLE, true),
 		pkcs11.NewAttribute(pkcs11.CKA_ID, keyId),
 	}
 }

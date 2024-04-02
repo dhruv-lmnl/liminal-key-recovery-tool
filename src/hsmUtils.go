@@ -522,7 +522,10 @@ func getPublicKey(p *pkcs11.Ctx, session pkcs11.SessionHandle, publicKeyObjectHa
 		E: exponent,
 	}
 
-	pubkeyPem := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: x509.MarshalPKCS1PublicKey(rsaPub)}))
+	pubkeyBytes, err := x509.MarshalPKIXPublicKey(rsaPub)
+	handleError("failed to get public key", err)
+
+	pubkeyPem := string(pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: pubkeyBytes}))
 
 	return pubkeyPem, nil
 }
